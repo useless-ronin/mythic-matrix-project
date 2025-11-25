@@ -1,0 +1,178 @@
+/* styles.css - Mythic Matrix Plugin Styles */
+
+/* --- Phoenix Nest View --- */
+.phoenix-nest-section {
+  margin-bottom: 24px;
+}
+
+.phoenix-nest-card {
+  padding: 10px 12px;
+  margin: 8px 0;
+  border-left: 4px solid var(--interactive-accent);
+  background-color: var(--background-secondary);
+  border-radius: 8px;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.phoenix-nest-card:hover {
+  background-color: var(--background-secondary-alt);
+}
+
+.phoenix-nest-card-buttons {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+/* --- Mythos Hub View --- */
+.mythos-hub-card {
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  transition: border-color 0.2s ease-in-out;
+}
+
+.mythos-hub-card:hover {
+  border-color: var(--interactive-accent);
+}
+
+.mythos-hub-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.mythos-hub-card-header h3 {
+  margin: 0;
+}
+
+.mythos-hub-card-pending-count {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-weight: bold;
+  border-radius: 50%;
+  min-width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9em;
+}
+
+.mythos-hub-card-desc {
+  font-size: 0.9em;
+  color: var(--text-muted);
+}
+
+/* --- Alchemist Log View --- */
+.alchemist-log-container h2 {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.alv-tab-container {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 8px;
+}
+
+.alv-tab-container .is-active {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.alv-card {
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
+.alv-card:hover {
+   border-color: var(--interactive-accent);
+}
+
+.alv-card-meta {
+  font-size: 0.85em;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.alv-card-buttons {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+}
+
+.alv-pending-grid, .priority-matrix-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.alv-explorer-container {
+    display: flex;
+    gap: 20px;
+}
+.alv-explorer-sidebar {
+    width: 200px;
+    flex-shrink: 0;
+}
+.alv-explorer-sidebar button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    margin-bottom: 4px;
+}
+.alv-explorer-content {
+    flex-grow: 1;
+}
+
+
+/* --- Priority Matrix View --- */
+.quadrant-container {
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+.quadrant-container h3 {
+  margin-top: 0;
+  border-bottom: 1px solid var(--text-faint);
+  padding-bottom: 8px;
+}
+
+.quadrant-note-item {
+  background: var(--background-primary);
+  color: var(--text-normal);
+  padding: 8px 10px;
+  border-radius: 5px;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+.quadrant-note-item:hover {
+  background: var(--background-secondary-alt);
+}
+
+.task-item, .completed-task-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.completed-task-item {
+  opacity: 0.7;
+  text-decoration: line-through;
+}
+
+.crucible-input {
+    width: 100%;
+    margin-bottom: 8px;
+}

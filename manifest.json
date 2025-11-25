@@ -1,0 +1,11 @@
+{
+	"id": "mythic-matrix",
+	"name": "Mythical Matrix",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "An intelligent UPSC preparation system for Obsidian.",
+	"author": "Sin",
+	"authorUrl": "https://obsidian.md",
+	"fundingUrl": "https://obsidian.md/pricing",
+	"isDesktopOnly": false
+}
