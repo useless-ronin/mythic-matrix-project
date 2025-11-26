@@ -354,6 +354,48 @@ export function registerCommands(plugin: MythicMatrixPlugin) {
   });
   // --- END NEW ---
 
+  // --- L19: Guardian Task Command ---
+plugin.addCommand({
+    id: 'labyrinth-convert-guardian',
+    name: 'Labyrinth: Convert Thread to Guardian Task',
+    checkCallback: (checking: boolean) => {
+        const file = plugin.app.workspace.getActiveFile();
+        // Only show if it's a Labyrinth note
+        if (file && file.path.startsWith(plugin.settings.lossLogFolder)) {
+            if (!checking) {
+                plugin.lossLogService.createGuardianTaskFromActiveNote(file);
+            }
+            return true;
+        }
+        return false;
+    }
+});
+
+// --- L26: Check Minotaur Status ---
+plugin.addCommand({
+    id: 'labyrinth-check-minotaur',
+    name: 'Labyrinth: Check Minotaur Status',
+    callback: () => {
+        const streak = plugin.settings.minotaurStreak;
+        const beast = plugin.settings.currentMinotaur || "None";
+        new Notice(`Current Minotaur: ${beast}\nStreak: ${streak} days free.`);
+    }
+});
+
+plugin.addCommand({
+    id: 'labyrinth-activate-theseus',
+    name: 'Labyrinth: Initiate Theseus Protocol (Generate Drills)',
+    callback: async () => {
+        const currentMinotaur = plugin.settings.currentMinotaur;
+        if (currentMinotaur) {
+            await plugin.lossLogService.activateTheseusProtocol(currentMinotaur);
+        } else {
+            new Notice("No Minotaur identified yet. Log more failures to reveal your weakness.");
+        }
+    }
+});
+
+
   // --- View Commands ---
 
   plugin.addCommand({ id: 'open-mythic-matrix', name: 'Open Mythic Matrix', callback: () => plugin.activateView('priority-matrix-view') });

@@ -20,6 +20,7 @@ import { WeaverLoomModal } from './modals/WeaverLoomModal';
 import { LossLogService } from './services/LossLogService'; // Import the service
 import { LossLogModal } from './modals/LossLogModal'; // Import the modal if needed elsewhere
 import { LabyrinthView, LABYRINTH_VIEW_TYPE } from './views/LabyrinthView'; // Adjust path if needed
+import { RitualService } from './services/RitualService'; // Import
 
 
 
@@ -32,6 +33,7 @@ export default class MythicMatrixPlugin extends Plugin {
   dragDropService: DragDropService; 
   synthesisService: SynthesisService;
   lossLogService: LossLogService; // Add the new service property
+  ritualService: RitualService;
 
 
   async onload() {
@@ -44,8 +46,8 @@ export default class MythicMatrixPlugin extends Plugin {
     this.archiveService = new ArchiveHistoryService(this.eventBus);
     this.alchemistService = new AlchemistService(this.app, this, this.lossLogService);
     this.synthesisService = new SynthesisService(this.app, this.eventBus, this.settings, this);
-    this.lossLogService = new LossLogService(this.app, this.eventBus, this.settings, this);
-
+    this.lossLogService = new LossLogService(this.app, this.eventBus, this.settings, this, this.revisionScheduler); // Ensure scheduler passed if needed
+    this.ritualService = new RitualService(this.app, this, this.lossLogService);
 
     if (this.settings.enableRevision) {
       this.revisionScheduler = new RevisionScheduler(this.app, this.eventBus, this.settings);
@@ -85,6 +87,9 @@ export default class MythicMatrixPlugin extends Plugin {
 
     // 🔥 REGISTER ALL COMMANDS HERE
     registerCommands(this);
+
+    // RE-REGISTER the event listener to include the new handler
+       this.eventBus.on('weeklyReset', this.handleWeeklyReset.bind(this));
 
     console.log('Mythic Matrix Plugin loaded.');
   }
@@ -202,6 +207,8 @@ export default class MythicMatrixPlugin extends Plugin {
     }
   }
 
+
+
   async upgradeLoomToConstellation(file: TFile) {
     const cache = this.app.metadataCache.getFileCache(file);
     if (cache?.frontmatter?.loomType !== "triad") {
@@ -226,17 +233,37 @@ export default class MythicMatrixPlugin extends Plugin {
     new Notice(`Reverse loom task created for ${basename}`);
   }
 
-   // --- NEW: Handle the weekly reset event ---
-  private handleWeeklyReset(): void {
-    console.log("[MythicMatrixPlugin] Received weeklyReset event, triggering subsystem resets.");
-    // Notify the Labyrinth service to handle its reset logic (clear queues, counts, history)
-    this.lossLogService.handleWeeklyReset(); // Call the new method on the service
-    // Notify other services if they have reset logic
-    // this.alchemistService.handleWeeklyReset();
-    // this.synthesisService.handleWeeklyReset();
-    // this.revisionScheduler.handleWeeklyReset(); // If applicable
-  }
-  // --- END NEW ---
+// --- MODIFIED: Handle the weekly reset event ---
+    private async handleWeeklyReset(): Promise<void> {
+        console.log("[MythicMatrixPlugin] ⏳ Initiating Weekly Ritual...");
+        
+        // 1. Generate the Time Capsule (Save the state before wiping)
+        try {
+            await this.ritualService.generateTimeCapsule();
+        } catch (e) {
+            console.error("Failed to generate Time Capsule:", e);
+            new Notice("Error generating Time Capsule. Check console.");
+        }
+
+        // 2. Trigger Subsystem Resets (Destructive actions)
+        console.log("[MythicMatrixPlugin] Resetting subsystems...");
+        this.lossLogService.handleWeeklyReset(); 
+        
+        // Optional: Archive completed tasks from settings to prevent bloat?
+        this.archiveCompletedTasks(); 
+
+        new Notice("Weekly Ritual Complete. The slate is clean.");
+    }
+
+private async archiveCompletedTasks() {
+        // Keep only the last 10 completed tasks for the UI list, archive the rest
+        // Since we already saved them to the Time Capsule note, we can drop them from memory.
+        if (this.settings.completedTasks.length > 10) {
+            this.settings.completedTasks = this.settings.completedTasks.slice(0, 10);
+            await this.saveSettings();
+            console.log("[MythicMatrixPlugin] Archived old completed tasks from settings.");
+        }
+    }    
 
   // --- NEW: Method to check answer rubric scoring (L94) ---
   private async checkAnswerRubricScoring(file: TFile) {

@@ -176,3 +176,46 @@
     width: 100%;
     margin-bottom: 8px;
 }
+
+/* L27: Kintsugi Highlight for Ariadne's Thread */
+/* Assuming Ariadne's Thread is rendered as a specific Frontmatter key or inline field */
+
+/* Target the Frontmatter container for Ariadne's Thread */
+.frontmatter-container .frontmatter-section-ariadnesThread .frontmatter-section-data {
+    color: #eeb92f !important; /* Gold color */
+    font-style: italic;
+    font-weight: 600;
+    text-shadow: 0 0 5px rgba(238, 185, 47, 0.3);
+    border-bottom: 1px dashed #eeb92f;
+}
+
+/* If rendered in the body using `ariadnesThread::` inline syntax or similar */
+span.cm-inline-field-key[data-key="ariadnesThread"] + span.cm-inline-field-value {
+    color: #eeb92f;
+    border-bottom: 1px solid #eeb92f;
+    padding: 0 4px;
+    background: rgba(238, 185, 47, 0.1);
+    border-radius: 4px;
+}
+
+/* For the Labyrinth View Dashboard */
+.labyrinth-view .current-minotaur-display strong {
+    color: #ff6b6b;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.labyrinth-view .minotaur-slayer-badge {
+    border: 1px solid gold;
+    color: gold;
+    padding: 5px;
+    border-radius: 5px;
+    text-align: center;
+    margin-top: 10px;
+    animation: glow 2s infinite alternate;
+}
+
+@keyframes glow {
+    from { box-shadow: 0 0 5px gold; }
+    to { box-shadow: 0 0 15px gold; }
+}

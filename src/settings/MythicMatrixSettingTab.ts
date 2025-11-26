@@ -143,6 +143,18 @@ new Setting(containerEl)
                     })
             );
         // --- END NEW ---
+
+        // --- Ritual Settings ---
+new Setting(containerEl)
+    .setName("Time Capsule Folder")
+    .setDesc("Folder where weekly review notes will be generated.")
+    .addText(text => text
+        .setPlaceholder("00 Meta/Time Capsules")
+        .setValue(this.plugin.settings.timeCapsuleFolder)
+        .onChange(async (value) => {
+            this.plugin.settings.timeCapsuleFolder = value.trim() || "00 Meta/Time Capsules";
+            await this.plugin.saveSettings();
+        }));
         
         // --- Quadrant Customization ---
         containerEl.createEl('h3', { text: 'Quadrant Customization' });

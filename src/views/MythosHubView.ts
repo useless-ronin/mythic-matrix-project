@@ -160,6 +160,28 @@ export class MythosHubView extends ItemView {
         }
     });
     
+// --- NEW: Daily Intent Section (L69) ---
+        const intent = await this.plugin.lossLogService.getDailyIntent();
+        if (intent) {
+            const intentContainer = this.containerEl.createDiv({ cls: 'mythos-daily-intent' });
+            intentContainer.createEl("span", { text: "🔮 Daily Intent: ", cls: "intent-label" });
+            intentContainer.createEl("span", { text: `"${intent}"`, cls: "intent-text" });
+            
+            // Styling for immediacy (You can move this to styles.css)
+            intentContainer.style.cssText = `
+                background: var(--background-primary-alt);
+                border-left: 4px solid var(--text-accent);
+                padding: 10px 15px;
+                margin-bottom: 20px;
+                border-radius: 4px;
+                font-style: italic;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            `;
+        }
+        // ---------------------------------------
+
     }
 
     // --- NEW METHOD: Open Deferred Modal for Labyrinth ---

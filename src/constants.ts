@@ -75,11 +75,21 @@ export interface MythicMatrixSettings {
     loomDeferralThreshold: number; // Number of deferrals before L85 prompt appears (e.g., 2)
     labyrinthDecayFactor: number; // Factor for exponential decay in Minotaur calculation (e.g., 0.95 means 5% decay per day)
   answerRubricFolder: string; // Folder to watch for answer rubric notes (e.g., "60 Answers/")
+// --- Labyrinth New Settings ---
+    labyrinthXP: number; // Total XP earned from Labyrinth
+    minotaurStreak: number; // Consecutive days without Minotaur failure
+    lastMinotaurDate: string | null; // ISO date of last Minotaur failure
+    enableLabyrinthSound: boolean; // Toggle for L96
+    guardianTaskInterval: number; // Default interval for Guardian tasks
+    timeCapsuleFolder: string; // Folder for weekly reports
 
 
   
 }
 
+// Event for UI updates
+export const EVENT_LABYRINTH_XP_UPDATED = 'labyrinth:xp-updated';
+export const EVENT_ACHIEVEMENT_UNLOCKED = 'labyrinth:achievement';
 
 // Define the possible failure types as a type alias for strict typing
 export type FailureType = 'Knowledge Gap' | 'Skill Gap' | 'Process Failure';
@@ -136,6 +146,43 @@ export const DEFAULT_FAILURE_ARCHETYPES = [
   'poor-structure'
 ];
 
+// --- L12: Theseus Protocol Drill Library ---
+export const THESEUS_DRILLS: Record<string, string[]> = {
+    'time-mismanagement': [
+        "⏱️ Theseus Drill: Solve 10 MCQs in strictly 7 minutes.",
+        "⏱️ Theseus Drill: Write a Mains Answer Intro + Conclusion in 4 minutes.",
+        "⏱️ Theseus Drill: Simulate the last 10 minutes of an exam (rush mode) with 5 questions."
+    ],
+    'conceptual-error': [
+        "🧠 Theseus Drill: Feynman Technique - Explain the confused concept to a 5-year-old (out loud).",
+        "🧠 Theseus Drill: Draw a concept map linking the weak topic to 3 other syllabus areas.",
+        "🧠 Theseus Drill: Review standard text (NCERT/Laxmikanth) for the specific concept."
+    ],
+    'silly-mistake': [
+        "🧐 Theseus Drill: 'Sniper Mode' - Solve 5 MCQs, reading every option twice before marking.",
+        "🧐 Theseus Drill: Audit last mock test specifically for reading errors (not knowledge gaps).",
+        "🧐 Theseus Drill: Practice 'keyword circling' on 5 Mains questions."
+    ],
+    'source-deficit': [
+        "📚 Theseus Drill: Find and tag one primary source (Gov report/Standard Book) for this topic.",
+        "📚 Theseus Drill: Cross-reference your notes against a topper's copy for this specific topic.",
+        "📚 Theseus Drill: Value of Information (VOI) Check - Is this source yielding marks?"
+    ],
+    'overthinking': [
+        "⚡ Theseus Drill: 'Gut Instinct' Run - Solve 10 MCQs trusting your first read immediately.",
+        "⚡ Theseus Drill: Rapid Fire - Answer 5 questions with only 10 seconds of thought each."
+    ],
+    'procrastination': [
+        "🧱 Theseus Drill: The 5-Minute Entry - Do just the first 5 minutes of the feared task.",
+        "🧱 Theseus Drill: Break the blocked task into 3 microscopic sub-tasks."
+    ],
+    // Fallback for others
+    'default': [
+        "⚔️ Theseus Drill: Re-attempt the failed question/task immediately.",
+        "⚔️ Theseus Drill: Write the Ariadne's Thread for this failure 3 times."
+    ]
+};
+
 // Default Settings for the plugin
 export const DEFAULT_SETTINGS: MythicMatrixSettings = {
   quadrantNames: { ...DEFAULT_NAMES },
@@ -167,8 +214,13 @@ export const DEFAULT_SETTINGS: MythicMatrixSettings = {
   archivedThreads: [], // Initialize as an empty array
   loomDeferralThreshold: 2, // Default threshold for L85 prompt
   labyrinthDecayFactor: 0.95, // Default decay factor for Labyrinth Minotaur calculation
-    answerRubricFolder: "60 Answers/", // Default folder for answer rubric notes
-
+  answerRubricFolder: "60 Answers/", // Default folder for answer rubric notes
+ labyrinthXP: 0,
+  minotaurStreak: 0,
+  lastMinotaurDate: null,
+  enableLabyrinthSound: true,
+  guardianTaskInterval: 7, // Weekly by default
+  timeCapsuleFolder: "00 Meta/Time Capsules",
 
 
 };

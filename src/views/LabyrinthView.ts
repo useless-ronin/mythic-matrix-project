@@ -64,6 +64,29 @@ export class LabyrinthView extends ItemView {
     // --- Header ---
     contentEl.createEl("h2", { text: "The Labyrinth of Loss" });
 
+    // --- NEW: Gamification Stats ---
+    const statsSection = contentEl.createDiv({ cls: "labyrinth-stats" });
+    statsSection.style.display = "flex";
+    statsSection.style.justifyContent = "space-between";
+    statsSection.style.marginBottom = "20px";
+    statsSection.style.padding = "10px";
+    statsSection.style.background = "var(--background-secondary)";
+    statsSection.style.borderRadius = "8px";
+
+    // XP Display - USE PUBLIC GETTER
+    statsSection.createDiv().innerHTML = `<strong>XP:</strong> ${this.lossLogService.getLabyrinthXP()} ✨`;
+    
+    // Streak Display - USE PUBLIC GETTER
+    const streak = this.lossLogService.getMinotaurStreak();
+    statsSection.createDiv().innerHTML = `<strong>Streak:</strong> ${streak} Days 🛡️`;
+
+    // Minotaur Slayer Badge (Visible if streak > 21)
+    if (streak >= 21) {
+        const badge = contentEl.createDiv({ cls: "minotaur-slayer-badge" });
+        badge.createEl("h3", { text: "🏆 MINOTAUR SLAYER" });
+        badge.createEl("p", { text: "You have mastered your weakness." });
+    }
+
     // --- Current Minotaur Section ---
     const minotaurSection = contentEl.createDiv({ cls: "minotaur-section" });
     minotaurSection.createEl("h3", { text: "Current Minotaur" });
