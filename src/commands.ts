@@ -1,11 +1,13 @@
 // src/commands.ts
 
-import { TFile, Modal, Notice, Editor } from 'obsidian'; // Add Editor import
+import { TFile, Modal, Notice, Editor, Setting } from 'obsidian'; // Add Editor import
 import MythicMatrixPlugin from './main';
 import { LoomGenerationModal } from './modals/LoomGenerationModal';
 import { WeaverLoomModal } from './modals/WeaverLoomModal';
 import { LossLogModal } from './modals/LossLogModal'; // Import the LossLogModal
 import { QuickLossLogModal } from './modals/QuickLossLogModal'; // Import the new modal
+import { LabyrinthSearchModal } from './modals/LabyrinthSearchModal'; // Import new modal
+import { PreTestWarmupModal } from "./modals/PreTestWarmupModal"; // Import
 
 
 export function registerCommands(plugin: MythicMatrixPlugin) {
@@ -395,6 +397,121 @@ plugin.addCommand({
     }
 });
 
+// --- L70: Generate Nemesis Block ---
+    plugin.addCommand({
+        id: 'labyrinth-generate-nemesis-block',
+        name: 'Labyrinth: Generate Interleaved Study Block (Nemesis + Strong)',
+        callback: () => {
+            plugin.lossLogService.generateInterleavedBlock();
+        }
+    });
+
+// --- L14: Echoes Search ---
+    plugin.addCommand({
+        id: 'labyrinth-search-echoes',
+        name: 'Labyrinth: Search Threads (Echoes)',
+        callback: () => {
+            new LabyrinthSearchModal(plugin.app, plugin.lossLogService).open();
+        }
+    });
+
+    // --- L97: Enshrine Thread ---
+    plugin.addCommand({
+        id: 'labyrinth-enshrine-thread',
+        name: 'Labyrinth: Enshrine Thread to Legacy Codex',
+        checkCallback: (checking: boolean) => {
+            const file = plugin.app.workspace.getActiveFile();
+            // Only valid if inside Labyrinth folder
+            if (file && file.path.startsWith(plugin.settings.lossLogFolder)) {
+                if (!checking) {
+                    plugin.lossLogService.enshrineThread(file);
+                }
+                return true;
+            }
+            return false;
+        }
+    });
+
+    // --- L66: Pre-Test Warmup ---
+    plugin.addCommand({
+        id: 'labyrinth-pre-test-warmup',
+        name: 'Labyrinth: Pre-Test Warmup (View Minotaur & Threads)',
+        callback: () => {
+            new PreTestWarmupModal(plugin.app, plugin.lossLogService).open();
+        }
+    });
+
+
+  // --- L39: Mentor Review Export ---
+    plugin.addCommand({
+        id: 'labyrinth-export-topic',
+        name: 'Labyrinth: Export Failure History for Topic',
+        callback: () => {
+            // 1. Try to infer topic from active file
+            const activeFile = plugin.app.workspace.getActiveFile();
+            let defaultTopic = "";
+            if (activeFile) {
+                defaultTopic = activeFile.basename;
+            }
+
+            // 2. Open simple modal to confirm topic name
+            const modal = new Modal(plugin.app);
+            modal.contentEl.createEl("h3", { text: "Export Labyrinth History" });
+            
+            let topicToExport = defaultTopic;
+            new Setting(modal.contentEl)
+                .setName("Topic Name")
+                .setDesc("Enter the topic name exactly as it appears in links (e.g., 'Fundamental Rights')")
+                .addText(text => text
+                    .setValue(defaultTopic)
+                    .onChange(v => topicToExport = v));
+
+            new Setting(modal.contentEl)
+                .addButton(btn => btn
+                    .setButtonText("Export Report")
+                    .setCta()
+                    .onClick(() => {
+                        if (topicToExport) {
+                            plugin.lossLogService.exportTopicSummary(topicToExport);
+                            modal.close();
+                        }
+                    }));
+            
+            modal.open();
+        }
+    });
+
+    // --- Dev Command: Force Generate Bounty (For testing) ---
+    plugin.addCommand({
+        id: 'labyrinth-generate-bounty',
+        name: 'Labyrinth: Generate New Bounty (Force)',
+        callback: () => {
+            plugin.lossLogService.generateWeeklyBounty();
+            new Notice("New Bounty Generated.");
+        }
+    }); 
+
+     plugin.addCommand({
+        id: 'labyrinth-resync-stats',
+        name: 'Labyrinth: Re-Sync Stats (Fix Counters)',
+        callback: async () => {
+            const folder = plugin.settings.lossLogFolder;
+            const files = plugin.app.vault.getMarkdownFiles().filter(f => f.path.startsWith(folder));
+            
+            // 1. Recalculate Total
+            plugin.settings.totalLossesLogged = files.length;
+            
+            // 2. Recalculate XP (Estimate: 10 XP per log + bonuses?)
+            // Hard to know exact bonuses, but we can verify base XP.
+            // Or just leave XP alone as it's a "lifetime" stat.
+            
+            // 3. Recalculate Minotaur
+            plugin.lossLogService.recalculateMinotaur();
+
+            await plugin.saveSettings();
+            new Notice(`System Synced: Found ${files.length} logs.`);
+        }
+    });
 
   // --- View Commands ---
 

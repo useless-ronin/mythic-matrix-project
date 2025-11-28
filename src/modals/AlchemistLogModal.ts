@@ -7,6 +7,7 @@ export class AlchemistLogModal extends Modal {
     alchemistService: AlchemistService;
     context: Partial<AlchemistLogData>;
     activeTab: string = "core";
+    onSaveCallback?: () => void | Promise<void>; // ← NEW: explicit callback
 
     // --- State properties for modal inputs ---
     topic: string;
@@ -19,10 +20,16 @@ export class AlchemistLogModal extends Modal {
     serendipitySpark: string;
     insight: string;
 
-    constructor(app: App, alchemistService: AlchemistService, context: Partial<AlchemistLogData>) {
+    constructor(
+        app: App,
+        alchemistService: AlchemistService,
+        context: Partial<AlchemistLogData>,
+        onSaveCallback?: () => void | Promise<void>  // ← NEW parameter
+    ) {
         super(app);
         this.alchemistService = alchemistService;
         this.context = context;
+        this.onSaveCallback = onSaveCallback; // ← assign it
 
         // Initialize state from the provided context or set defaults
         this.topic = context.topic || 'General';
@@ -68,19 +75,18 @@ export class AlchemistLogModal extends Modal {
 
         // ---> THIS IS THE CORRECTED ONCLICK HANDLER <---
         saveBtn.onclick = async () => {
-            const logData = this.buildEntry();
-            await this.alchemistService.saveLog(logData);
+    const logData = this.buildEntry();
+    await this.alchemistService.saveLog(logData);
 
-            // If an onSave callback was provided by the caller (like PhoenixNestView), execute it.
-            if (this.context.onSave) {
-                await this.context.onSave();
-            } else {
-                 // Fallback notice if no callback is provided
-                new Notice(`Reflection saved: ${this.topic}`);
-            }
+    // ✅ Use the explicit callback
+    if (this.onSaveCallback) {
+        await this.onSaveCallback();
+    } else {
+        new Notice(`Reflection saved: ${this.topic}`);
+    }
 
-            this.close();
-        };
+    this.close();
+};
     }
 
     getTabName(tab: string): string {
@@ -149,19 +155,21 @@ export class AlchemistLogModal extends Modal {
 
     // Helper to gather all state into the final data object
     buildEntry(): AlchemistLogData {
-        return {
-            topic: this.topic.trim(),
-            log: this.log.trim(),
-            understanding: this.understanding,
-            confidenceBefore: this.confidenceBefore,
-            confidenceAfter: this.confidenceAfter,
-            difficultyCauses: this.difficultyCauses,
-            fixPrinciple: this.fixPrinciple.trim(),
-            serendipitySpark: this.serendipitySpark.trim(),
-            insight: this.insight.trim(),
-            ...this.context, // Carry over taskId, taskText, etc.
-            timestamp: this.context.timestamp || Date.now()
-        };
+    return {
+        // Required fields – provide fallbacks if needed
+        taskText: this.context.taskText || '', // or throw if truly required
+        topic: this.topic.trim() || 'General',
+        log: this.log.trim(),
+        understanding: this.understanding,
+        confidenceBefore: this.confidenceBefore,
+        confidenceAfter: this.confidenceAfter,
+        difficultyCauses: this.difficultyCauses,
+        fixPrinciple: this.fixPrinciple.trim(),
+        serendipitySpark: this.serendipitySpark.trim(),
+        insight: this.insight.trim(),
+        originalTaskId: this.context.originalTaskId,
+        timestamp: this.context.timestamp || Date.now()
+    };
     }
 
     onClose() {

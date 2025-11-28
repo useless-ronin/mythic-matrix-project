@@ -219,3 +219,225 @@ span.cm-inline-field-key[data-key="ariadnesThread"] + span.cm-inline-field-value
     from { box-shadow: 0 0 5px gold; }
     to { box-shadow: 0 0 15px gold; }
 }
+
+/* src/styles.css or snippets */
+
+.pre-test-warmup-modal .warmup-section {
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: 8px;
+}
+
+.pre-test-warmup-modal .minotaur-warning {
+    background-color: rgba(255, 0, 0, 0.1);
+    border-left: 4px solid #ff4d4d;
+}
+
+.pre-test-warmup-modal .minotaur-warning h3 {
+    color: #ff4d4d;
+    margin-top: 0;
+}
+
+.pre-test-warmup-modal .threads-list {
+    background-color: rgba(255, 215, 0, 0.1);
+    border-left: 4px solid #ffd700;
+}
+
+.pre-test-warmup-modal .threads-list h3 {
+    color: #ffd700;
+    margin-top: 0;
+}
+
+.pre-test-warmup-modal .threads-list li {
+    font-style: italic;
+    margin-bottom: 8px;
+}
+
+/* styles.css */
+
+/* --- VARIABLES --- */
+:root {
+    --mythic-gold: #d4af37;
+    --mythic-red: #ff4d4d;
+    --mythic-bg-candle: #1a1510; /* Warm dark brown/black */
+    --mythic-text-candle: #e0d0b0; /* Warm parchment text */
+    --mythic-accent-candle: #ffaa00; /* Flame orange */
+}
+
+/* --- L65: CANDLELIGHT THEME (Labyrinth View) --- */
+.labyrinth-view.candlelight-mode {
+    background-color: var(--mythic-bg-candle) !important;
+    color: var(--mythic-text-candle) !important;
+    transition: background-color 0.5s ease;
+}
+
+.labyrinth-view.candlelight-mode h2, 
+.labyrinth-view.candlelight-mode h3, 
+.labyrinth-view.candlelight-mode h4 {
+    color: var(--mythic-accent-candle) !important;
+    text-shadow: 0 0 10px rgba(255, 170, 0, 0.3);
+}
+
+.labyrinth-view.candlelight-mode .metric-card,
+.labyrinth-view.candlelight-mode .labyrinth-stats {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 170, 0, 0.2);
+}
+
+/* --- L27/L100: KINTSUGI HIGHLIGHTS --- */
+/* Applied to Ariadne's Threads and special text */
+.kintsugi-thread, 
+.ariadnes-thread-item {
+    color: var(--mythic-gold) !important;
+    font-style: italic;
+    position: relative;
+    display: inline-block;
+}
+
+.kintsugi-thread::after,
+.ariadnes-thread-item::after {
+    content: '';
+    display: block;
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--mythic-gold), transparent);
+    margin-top: 2px;
+    opacity: 0.7;
+}
+
+/* --- COMPONENT STYLES --- */
+
+/* L56 Phoenix Counter (in Hub) */
+.phoenix-counter {
+    text-align: center;
+    font-size: 0.9em;
+    color: var(--text-muted);
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--background-modifier-border);
+}
+
+.phoenix-counter strong {
+    color: var(--mythic-gold);
+}
+
+/* Weak Zone Alert (L67) */
+.weak-zone-alert-box {
+    animation: pulse-red 3s infinite;
+}
+
+@keyframes pulse-red {
+    0% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.2); }
+    70% { box-shadow: 0 0 0 6px rgba(255, 77, 77, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0); }
+}
+
+/* Minotaur Slayer Badge */
+.minotaur-slayer-badge {
+    border: 1px solid var(--mythic-gold);
+    color: var(--mythic-gold);
+    padding: 10px;
+    border-radius: 8px;
+    text-align: center;
+    margin-top: 15px;
+    background: linear-gradient(45deg, transparent, rgba(212, 175, 55, 0.1), transparent);
+    animation: glow 3s infinite alternate;
+}
+
+@keyframes glow {
+    from { box-shadow: 0 0 5px rgba(212, 175, 55, 0.2); }
+    to { box-shadow: 0 0 15px rgba(212, 175, 55, 0.6); }
+}
+
+/* Modal Polish */
+.loss-log-modal .setting-item {
+    border-bottom: none; 
+}
+
+.loss-log-deep-dive button {
+    background-color: transparent;
+    border: 1px solid var(--text-muted);
+    color: var(--text-muted);
+    transition: all 0.3s;
+}
+
+.loss-log-deep-dive button:hover {
+    border-color: var(--mythic-gold);
+    color: var(--mythic-gold);
+    box-shadow: 0 0 8px rgba(212, 175, 55, 0.3);
+}
+
+/* styles.css */
+
+/* Labyrinth Codeblock Controls */
+.labyrinth-controls-block {
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 20px;
+    text-align: center;
+}
+
+.labyrinth-controls-header {
+    margin-top: 0;
+    color: var(--text-muted);
+    font-size: 0.9em;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.labyrinth-btn-group {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.lab-btn {
+    background-color: var(--interactive-normal);
+    color: var(--text-normal);
+    border: 1px solid var(--background-modifier-border);
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.lab-btn:hover:not(:disabled) {
+    background-color: var(--interactive-hover);
+    border-color: var(--mythic-gold);
+}
+
+.lab-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* Scrying Pool specific styles */
+.scrying-resolve-container {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px dashed var(--background-modifier-border);
+}
+
+.lab-btn-success {
+    background-color: rgba(69, 160, 73, 0.2);
+    border: 1px solid #45a049;
+    color: #45a049;
+}
+
+.lab-btn-success:hover {
+    background-color: rgba(69, 160, 73, 0.4);
+}
+
+.lab-btn-danger {
+    background-color: rgba(211, 47, 47, 0.2);
+    border: 1px solid #d32f2f;
+    color: #d32f2f;
+}
+
+.lab-btn-danger:hover {
+    background-color: rgba(211, 47, 47, 0.4);
+}

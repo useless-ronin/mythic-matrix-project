@@ -1,6 +1,6 @@
 // src/views/PriorityMatrixView.ts (Updated renderTask method)
 
-import { ItemView, WorkspaceLeaf, Notice, TFile, TAbstractFile, TextComponent, ButtonComponent, Modal } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, TFile, TAbstractFile, TextComponent, ButtonComponent, Setting,  Modal } from 'obsidian';
 import MythicMatrixPlugin from '../main';
 import { MATRIX_VIEW_TYPE, QUADRANT_IDS, Task, CompletedTask } from '../constants';
 import { FeedbackModal } from '../modals/FeedbackModal';
@@ -348,6 +348,19 @@ export class PriorityMatrixView extends ItemView {
     settings.tasks.splice(index, 1);
     await this.plugin.saveSettings();
 
+    // --- NEW: L87 Thread Reinforcement Prompt ---
+        const match = task.text.match(/\[\[(.*?)\]\]/);
+        if (match) {
+            const topicName = match[1];
+            // Check for thread
+            const thread = this.plugin.lossLogService.getThreadForTopic(topicName);
+            
+            if (thread) {
+                this.triggerThreadReinforcement(topicName, thread);
+            }
+        }
+        // -------------------------------------------
+
     // --- Existing Phoenix Revision Block ---
     if (settings.enableRevision && this.plugin.revisionScheduler) {
         const match = task.text.match(/\[\[(.*?)\]\]/);
@@ -393,41 +406,27 @@ export class PriorityMatrixView extends ItemView {
                 return;
             }
 
-            // --- NEW: Handle "Void Justification" (L93) ---
+            // --- NEW: L93 Void Justification ---
             if (targetQuadrantId === "void") {
-                // Prompt the user for the reason for moving to the Void
                 const reason = await this.promptForVoidReason(file.basename);
-                if (reason === null) { // User cancelled
-                    return; // Abort the move to void
-                }
+                
+                if (!reason) return; // User cancelled the drop
 
-                // If the reason is "Source Material Failure", log it to the Labyrinth
-                if (reason === "Source Material Failure") {
-                    // Close the priority matrix view first (optional, but might be less confusing)
-                    this.app.workspace.detachLeavesOfType(MATRIX_VIEW_TYPE);
-                    // Open the Labyrinth quick log modal with pre-filled context
-                    const initialContext = {
-                        sourceTask: `Moved [[${file.basename}]] to Void: ${reason}`, // Pre-fill source task
-                        initialFailureType: "Process Failure" as const, // Likely for source issues
-                        initialArchetypes: ["source-deficit"], // Pre-fill with relevant archetype
-                        // Determine sourceTaskId for potential auto-tagging (L51)
-                        // The file path is the source here
-                        sourceTaskId: file.path,
-                    };
-
-                    // Open the QuickLossLogModal (or LossLogModal)
+                if (reason === "Source Failure") {
+                    // Auto-log to Labyrinth via Quick Log
                     new QuickLossLogModal(
-                        this.app,
-                        this.plugin.lossLogService, // Assuming lossLogService is available on main plugin
-                        (submittedData) => {
-                            console.log("Labyrinth quick log (L93) submitted via Void justification prompt:", submittedData);
-                            new Notice("Labyrinth: Source failure logged via Void justification.");
-                        },
-                        initialContext // Pass the initial context object (4th argument)
+                        this.app, 
+                        this.plugin.lossLogService,
+                        () => {}, // No callback needed
+                        {
+                            sourceTask: `Voided Note: [[${file.basename}]]`,
+                            initialFailureType: "Process Failure",
+                            initialArchetype: "source-deficit" // This triggers L53 VOI Task automatically!
+                        }
                     ).open();
                 }
             }
-            // --- END NEW ---
+            // -----------------------------------
 
             const quadName = this.plugin.settings.quadrantNames[targetQuadrantId];
             new Notice(`Moved ${file.basename} to ${quadName}`);
@@ -437,44 +436,74 @@ export class PriorityMatrixView extends ItemView {
             });
         });
     }
-    // --- END NEW/REFINED ---
 
-    // --- NEW: Helper to prompt for Void reason (L93) ---
+ // --- NEW: Helper for L87 ---
+    private triggerThreadReinforcement(topic: string, thread: string) {
+        // Simple Modal or Confirm? Modal gives better UX for "Yes I did"
+        const modal = new Modal(this.app);
+        modal.contentEl.createEl("h2", { text: "🧵 Thread Reinforcement" });
+        modal.contentEl.createEl("p", { text: `You just finished a task on "${topic}".` });
+        
+        const quote = modal.contentEl.createEl("blockquote", { text: thread });
+        Object.assign(quote.style, { borderLeft: "4px solid gold", paddingLeft: "10px", fontStyle: "italic" });
+
+        modal.contentEl.createEl("h3", { text: "Did you apply this principle?" });
+
+        const btns = modal.contentEl.createDiv();
+        Object.assign(btns.style, { display: "flex", gap: "10px", justifyContent: "flex-end" });
+
+        const yesBtn = btns.createEl("button", { text: "Yes, I did!", cls: "mod-cta" });
+        yesBtn.onclick = async () => {
+            new Notice("🌟 Wisdom Applied! (+20 XP)");
+            // Add XP
+            this.plugin.settings.labyrinthXP += 20;
+            await this.plugin.saveSettings();
+            modal.close();
+        };
+
+        const noBtn = btns.createEl("button", { text: "Oops, forgot." });
+        noBtn.onclick = () => {
+            new Notice("Keep it in mind for next time.");
+            modal.close();
+        };
+
+        modal.open();
+    }
+       
+// --- NEW: Helper Modal for Void Reason ---
     private async promptForVoidReason(noteName: string): Promise<string | null> {
         return new Promise((resolve) => {
             const modal = new Modal(this.app);
-            const { contentEl } = modal;
-            contentEl.empty();
+            modal.contentEl.createEl("h3", { text: `🌌 Into the Void: ${noteName}` });
+            modal.contentEl.createEl("p", { text: "Why are you abandoning this?" });
 
-            contentEl.createEl("h3", { text: `Justify Moving to Void: ${noteName}` });
-            contentEl.createEl("p", { text: "Why is this task moving to the Void quadrant?" });
+            const buttonsDiv = modal.contentEl.createDiv();
+            buttonsDiv.style.display = "flex";
+            buttonsDiv.style.flexDirection = "column";
+            buttonsDiv.style.gap = "10px";
 
             const reasons = [
-                "Not Relevant",
-                "Source Material Failure", // Key reason for L93
-                "Too Difficult",
-                "Outdated",
-                "Other"
+                { label: "✅ Completed/Irrelevant", val: "Done" },
+                { label: "📉 Source Failure (Bad Material)", val: "Source Failure" },
+                { label: "⏳ Too Time Consuming", val: "Time" },
+                { label: "❌ Just giving up", val: "GiveUp" }
             ];
 
-            reasons.forEach(reason => {
-                const button = contentEl.createEl("button", { text: reason });
-                button.onclick = () => {
+            reasons.forEach(r => {
+                const btn = buttonsDiv.createEl("button", { text: r.label });
+                btn.onclick = () => {
                     modal.close();
-                    resolve(reason);
+                    resolve(r.val);
                 };
             });
 
-            const cancelButton = contentEl.createEl("button", { text: "Cancel" });
-            cancelButton.onclick = () => {
-                modal.close();
-                resolve(null); // Indicate cancellation
+            // Handle close without choice
+            modal.onClose = () => {
+                // If resolved already, this does nothing. If not, we need to handle cancel.
+                // A simple way is treating close as cancel.
             };
-
-            modal.open();
         });
     }
-    // --- END NEW ---
 
     private setupCrucibleDropzone(element: HTMLElement) {
         element.addEventListener("dragover", e => {

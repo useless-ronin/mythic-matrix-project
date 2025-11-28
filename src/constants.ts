@@ -82,14 +82,38 @@ export interface MythicMatrixSettings {
     enableLabyrinthSound: boolean; // Toggle for L96
     guardianTaskInterval: number; // Default interval for Guardian tasks
     timeCapsuleFolder: string; // Folder for weekly reports
-
+    activeBounty: Bounty | null; // L29
+    taskDeferralCounts: Record<string, number>;
+// Configurable threshold
+    generalDeferralThreshold: number; // Default 3
+    totalLossesLogged: number; // L56: Counter
+    enableCandlelightMode: boolean; // L65: Theme Toggle
+    monthlyJournalFolder: string; // L89
+    blockedHeaders: string[]; // L54: Headers that trigger "Blocked" state
 
   
 }
 
+export const XP_LEVELS = [
+    { level: 1, xp: 0, title: "Lost Soul" },
+    { level: 2, xp: 100, title: "Thread Finder" },
+    { level: 3, xp: 300, title: "Maze Walker" },
+    { level: 4, xp: 600, title: "Minotaur Hunter" },
+    { level: 5, xp: 1000, title: "Ariadne's Chosen" },
+    { level: 6, xp: 1500, title: "Labyrinth Breaker" },
+    { level: 7, xp: 2500, title: "Daedalus Architect" },
+    { level: 8, xp: 5000, title: "Mythic Ascendant" }
+];
+
+
 // Event for UI updates
 export const EVENT_LABYRINTH_XP_UPDATED = 'labyrinth:xp-updated';
 export const EVENT_ACHIEVEMENT_UNLOCKED = 'labyrinth:achievement';
+
+// --- NEW: Context Lists ---
+export const EXAM_PHASES = ["Prelims", "Mains", "Interview"];
+export const QUESTION_TYPES = ["Direct/Define", "Discuss", "Analyze", "Critically Examine", "Elucidate", "Comment", "Evaluate", "MCQ"];
+export const SOURCE_TYPES = ["Standard Book", "NCERT", "Newspaper", "Coaching Material", "YouTube/Video", "Mock Test Solution", "Self-Notes"];
 
 // Define the possible failure types as a type alias for strict typing
 export type FailureType = 'Knowledge Gap' | 'Skill Gap' | 'Process Failure';
@@ -122,8 +146,35 @@ export interface LossLogData {
   failureTags?: string[]; // Optional array of tags like ["#failed-on-YYYYMMDD"]
   // --- END ADD ---
   failureRealizationPoint?: string; // e.g., "50%", "Near the end", "At the start"
+  // --- NEW FIELDS ---
+  confidenceScore?: number; // L41: 1-5 Scale (1=Guessed, 5=Sure)
+  questionType?: string;    // L43: Discuss, Analyze, etc.
+  sourceType?: string;      // L44: NCERT, Video, etc.
+  examPhase?: string;       // L42: Prelims/Mains
+  
 
 }
+
+export interface Bounty {
+    id: string;
+    archetype: string; // The target failure type (e.g., "time-mismanagement")
+    count: number;     // Current progress
+    target: number;    // Goal (e.g., 3)
+    rewardXP: number;  // XP Reward
+    completed: boolean;
+}
+
+// --- L57: Anti-Shame & Growth Mindset Library ---
+export const GROWTH_PROMPTS = [
+    "Data, not destiny.",
+    "A stumble prevents a fall.",
+    "The obstacle is the way.",
+    "Gold repairs the crack.",
+    "Failure is the tuition of mastery.",
+    "You are not your mistakes.",
+    "Every thread weaves the safety net.",
+    "Chaos precedes order."
+];
 
 // EventBus Events for Labyrinth
 export const EVENT_LOSS_LOGGED = 'lossLogged';
@@ -146,7 +197,6 @@ export const DEFAULT_FAILURE_ARCHETYPES = [
   'poor-structure'
 ];
 
-// --- L12: Theseus Protocol Drill Library ---
 export const THESEUS_DRILLS: Record<string, string[]> = {
     'time-mismanagement': [
         "⏱️ Theseus Drill: Solve 10 MCQs in strictly 7 minutes.",
@@ -221,6 +271,13 @@ export const DEFAULT_SETTINGS: MythicMatrixSettings = {
   enableLabyrinthSound: true,
   guardianTaskInterval: 7, // Weekly by default
   timeCapsuleFolder: "00 Meta/Time Capsules",
+  activeBounty: null,
+  taskDeferralCounts: {},
+  generalDeferralThreshold: 3,
+  totalLossesLogged: 0,
+  enableCandlelightMode: true, // Default to on for immersion
+  monthlyJournalFolder: "00 Meta/Monthly Reviews",
+  blockedHeaders: ["Blocked", "Waiting", "Stuck", "On Hold"],
 
 
 };

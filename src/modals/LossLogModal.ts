@@ -1,8 +1,17 @@
-// src/modals/LossLogModal.ts (Refined with L45, L71, L72, L74)
+// src/modals/LossLogModal.ts
 
 import { App, Modal, Setting, TextAreaComponent, Notice } from "obsidian";
 import { LossLogService, PendingLossLogContext } from "../services/LossLogService";
-import { LossLogData, FailureType, DEFAULT_FAILURE_ARCHETYPES } from "../constants";
+import { 
+    LossLogData, 
+    FailureType, 
+    DEFAULT_FAILURE_ARCHETYPES,
+    EXAM_PHASES,      // <--- ADDED
+    QUESTION_TYPES,   // <--- ADDED
+    SOURCE_TYPES      // <--- ADDED
+} from "../constants";
+import MythicMatrixPlugin from "../main"; // Import Plugin class
+
 
 // Define the initial context structure for the main loss log modal
 interface InitialLossLogContext {
@@ -10,14 +19,9 @@ interface InitialLossLogContext {
   initialFailureType?: FailureType;
   initialArchetypes?: string[];
   initialAura?: string;
-  initialSyllabusTopics?: string[]; // Example of an additional field
-  // --- ADD FIELD FOR ORIGINAL SOURCE TASK ID (L51, L24, L85) ---
-  sourceTaskId?: string; // Could be a Crucible task ID or a file path for auto-tagging
-  // --- END ADD ---
-  // --- ADD FIELD FOR PROACTIVE MODE (L45, L15) ---
-  isProactiveMode?: boolean; // Flag to indicate if opened from proactive context (Scrying Pool)
-  // --- END ADD ---
-  // Add other fields if needed for pre-filling
+  initialSyllabusTopics?: string[]; 
+  sourceTaskId?: string; 
+  isProactiveMode?: boolean; 
 }
 
 // --- NEW: Define Thread Templates (L72) ---
@@ -27,9 +31,7 @@ const THREAD_TEMPLATES: Record<string, string> = {
   "source-deficit": "Always verify the credibility and depth of source material before synthesizing.",
   "silly-mistake": "Always review the final answer/check calculations before submitting.",
   "faded-knowledge": "Schedule a focused revision session on this topic within 24 hours.",
-  // Add more templates as needed
 };
-// --- END NEW ---
 
 // --- NEW: Define Keyword Suggestions (L71) ---
 const KEYWORD_SUGGESTIONS: Record<string, string[]> = {
@@ -44,16 +46,16 @@ const KEYWORD_SUGGESTIONS: Record<string, string[]> = {
   "procrastinated": ["process-failure"],
   "distracted": ["process-failure"],
   "tired": ["process-failure"],
-  // Add more mappings as needed
 };
-// --- END NEW ---
 
 export class LossLogModal extends Modal {
   private lossLogService: LossLogService;
   private onSubmit: ( data:LossLogData) => void;
-  private initialContext?: InitialLossLogContext; // Store the initial context provided by the caller
+  private initialContext?: InitialLossLogContext;
+  private plugin: MythicMatrixPlugin; // Need access to plugin to open Alchemist Modal
 
-  // State variables to hold user input (as before)
+
+  // State variables to hold user input
   private sourceTask: string = "";
   private failureType: FailureType | null = null;
   private selectedArchetypes: string[] = [];
@@ -67,21 +69,27 @@ export class LossLogModal extends Modal {
   private counterFactual: string = "";
   private evidenceLink: string = "";
   private linkedMockTest: string = "";
-  // --- ADD STATE FOR NEW FIELD (L45) ---
-  private failureRealizationPoint: string = ""; // e.g., "50%", "Near the end", "At the start"
-  // --- END ADD ---
-
-  // --- ADD STATE FOR PROACTIVE MODE (L15) ---
+  private failureRealizationPoint: string = "";
   private isProactiveMode: boolean = false;
-  // --- END ADD ---
 
-  constructor(app: App, lossLogService: LossLogService, onSubmit: ( data: LossLogData) => void, initialContext?: InitialLossLogContext) {
-    super(app);
-    this.lossLogService = lossLogService;
-    this.onSubmit = onSubmit;
-    this.initialContext = initialContext;
 
-    // Pre-populate state variables from initialContext if provided (e.g., from Crucible button click or FeedbackModal prompt)
+  // --- NEW CONTEXT FIELDS ---
+  private confidenceScore: number = 3;
+  private questionType: string = "";
+  private sourceType: string = "";
+  private examPhase: string = "";
+
+    constructor(app: App, lossLogService: LossLogService, onSubmit: (data: LossLogData) => void, initialContext?: InitialLossLogContext) {
+        super(app);
+        this.lossLogService = lossLogService;
+        // Hacky way to get plugin if not passed directly, but better to pass it.
+        // Assuming lossLogService has a public 'plugin' property now (if we made it public earlier).
+        // If not, we cast.
+        this.plugin = (this.lossLogService as any).plugin; 
+        
+        this.onSubmit = onSubmit;
+        this.initialContext = initialContext;
+
     if (this.initialContext?.sourceTask) {
       this.sourceTask = this.initialContext.sourceTask;
     }
@@ -89,38 +97,37 @@ export class LossLogModal extends Modal {
       this.failureType = this.initialContext.initialFailureType;
     }
     if (this.initialContext?.initialArchetypes) {
-      this.selectedArchetypes = [...this.initialContext.initialArchetypes]; // Create a copy
+      this.selectedArchetypes = [...this.initialContext.initialArchetypes]; 
     }
     if (this.initialContext?.initialAura) {
       this.aura = this.initialContext.initialAura;
     }
     if (this.initialContext?.initialSyllabusTopics) {
-      this.syllabusTopics = this.initialContext.initialSyllabusTopics.join(", "); // Join array into string for input field
+      this.syllabusTopics = this.initialContext.initialSyllabusTopics.join(", "); 
     }
-    // Pre-populate other fields if initialContext provides them
-    // --- SET PROACTIVE MODE FLAG (L15) ---
-    this.isProactiveMode = this.initialContext?.isProactiveMode || false; // Set flag based on initial context
-    // --- END SET ---
+    this.isProactiveMode = this.initialContext?.isProactiveMode || false;
 
-    
+    // --- NEW: L23 Pre-fill Mock Test ---
+    if (!this.linkedMockTest) {
+        const detectedMock = this.lossLogService.getRecentMockTest ? this.lossLogService.getRecentMockTest() : undefined;
+        if (detectedMock) {
+            this.linkedMockTest = detectedMock;
+        }
+    }
   }
 
- // --- ADD: Helper method to update archetype display (Fixes error 1) ---
   private updateArchetypeDisplay() {
-    // Find the archetype display element (created in onOpen)
     const archetypeDisplay = this.containerEl.querySelector('.selected-archetypes-display');
     if (archetypeDisplay) {
       archetypeDisplay.textContent = `Selected: ${this.selectedArchetypes.join(", ") || "None"}`;
     }
   }
-  // --- END ADD ---
 
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("loss-log-modal");
 
-    // --- UPDATE HEADER BASED ON MODE (L15) ---
     if (this.isProactiveMode) {
       contentEl.createEl("h2", { text: "Scrying Pool: Log Future Risk" });
       contentEl.createEl("p", { text: "Describe a potential obstacle or risk you anticipate.", cls: "modal-subtitle" });
@@ -128,36 +135,51 @@ export class LossLogModal extends Modal {
       contentEl.createEl("h2", { text: "Enter the Labyrinth" });
       contentEl.createEl("p", { text: "Log a failure that has already occurred.", cls: "modal-subtitle" });
     }
-    // --- END UPDATE ---
 
-    // --- 1. Failure Triage (L1) - Pre-fill for Proactive (L15) ---
+    // --- 1. Failure Triage ---
     new Setting(contentEl)
-      .setName(this.isProactiveMode ? "1. Anticipated Failure Type" : "1. Failure Type") // Update name for proactive mode
-      .setDesc(
-        this.isProactiveMode
-          ? "What type of potential failure are you anticipating?" // Update desc for proactive mode
-          : "What type of failure was this?"
-      )
+      .setName(this.isProactiveMode ? "1. Anticipated Failure Type" : "1. Failure Type")
+      .setDesc(this.isProactiveMode ? "What type of potential failure are you anticipating?" : "What type of failure was this?")
       .addDropdown((dropdown) =>
         dropdown
           .addOption("", "Select...")
           .addOption("Knowledge Gap", "Knowledge Gap (Didn't know)")
           .addOption("Skill Gap", "Skill Gap (Knew but couldn't apply)")
           .addOption("Process Failure", "Process Failure (Planning/Time/Execution)")
-          .setValue(this.failureType || (this.isProactiveMode ? "Process Failure" : "")) // Pre-select Process Failure for proactive mode
+          .setValue(this.failureType || (this.isProactiveMode ? "Process Failure" : ""))
           .onChange((value) => {
             this.failureType = value as FailureType;
-            // --- NEW: Auto-Suggest Archetypes based on Failure Type (L71) ---
             if (value === "Process Failure" && !this.selectedArchetypes.includes("process-failure")) {
                 this.selectedArchetypes.push("process-failure");
-                this.updateArchetypeDisplay(); // Refresh the display
+                this.updateArchetypeDisplay(); 
             }
-            // Add other suggestions based on type if desired.
-            // --- END NEW ---
           })
       );
 
-    // --- 2. Failure Archetype Tagging (L3) ---
+    // --- NEW: L42 Exam Phase ---
+    new Setting(contentEl)
+        .setName("Context: Exam Phase")
+        .setDesc("Is this related to Prelims, Mains, or Interview?")
+        .addDropdown(dropdown => {
+            dropdown.addOption("", "Select...");
+            // Added type annotation (phase: string)
+            EXAM_PHASES.forEach((phase: string) => dropdown.addOption(phase, phase));
+            dropdown.setValue(this.examPhase)
+                    .onChange(v => this.examPhase = v);
+        });
+
+    // --- NEW: L41 Confidence Score ---
+    new Setting(contentEl)
+        .setName("Confidence Level (Before Failure)")
+        .setDesc("How sure were you before you checked the answer? (1=Guessed, 5=Certain)")
+        .addSlider(slider => slider
+            .setLimits(1, 5, 1)
+            .setValue(this.confidenceScore)
+            .setDynamicTooltip()
+            .onChange(v => this.confidenceScore = v)
+        );
+
+    // --- 2. Failure Archetype Tagging ---
     new Setting(contentEl)
       .setName("2. Failure Archetype(s)")
       .setDesc("Select one or more archetypes that describe the failure.")
@@ -169,42 +191,28 @@ export class LossLogModal extends Modal {
         dropdown.onChange((value) => {
           if (value && !this.selectedArchetypes.includes(value)) {
             this.selectedArchetypes.push(value);
-            this.updateArchetypeDisplay(); // Refresh the display
+            this.updateArchetypeDisplay(); 
 
-            // --- NEW: Auto-Suggest Thread based on Archetype (L72) ---
-            if (THREAD_TEMPLATES[value] && !this.ariadnesThread) { // Only suggest if thread is empty
-                // Optionally, confirm with user before auto-filling
+            if (THREAD_TEMPLATES[value] && !this.ariadnesThread) { 
                 if (confirm(`Suggest thread for '${value}': "${THREAD_TEMPLATES[value]}" Fill it in?`)) {
                     this.ariadnesThread = THREAD_TEMPLATES[value];
-                    // Update the corresponding UI element if it exists
-                    const threadTextArea = this.containerEl.querySelector('.ariadnes-thread-input') as HTMLTextAreaElement; // Find the input by class
+                    const threadTextArea = this.containerEl.querySelector('.ariadnes-thread-input') as HTMLTextAreaElement;
                     if (threadTextArea) {
                         threadTextArea.value = this.ariadnesThread;
                     }
                 }
             }
-            // --- END NEW ---
           }
         });
       });
-    // Create a div to display selected archetypes
+    
     const archetypeDisplay = contentEl.createDiv({ cls: "selected-archetypes-display" });
     archetypeDisplay.setText(`Selected: ${this.selectedArchetypes.join(", ") || "None"}`);
 
-    // --- NEW: Helper to update archetype display (L71, L72) ---
-    const updateArchetypeDisplay = () => {
-        archetypeDisplay.setText(`Selected: ${this.selectedArchetypes.join(", ") || "None"}`);
-    };
-    // --- END NEW ---
-
-    // --- 3. Impact Score (L4) - Adjust for Proactive (L15) ---
+    // --- 3. Impact Score ---
     new Setting(contentEl)
-      .setName("3. Estimated Impact Score") // Update name for proactive mode
-      .setDesc(
-        this.isProactiveMode
-          ? "Estimate the strategic impact if this potential failure occurs (1 = Minor, 5 = Critical)." // Update desc for proactive mode
-          : "Rate the strategic impact of this failure (1 = Minor, 5 = Critical)."
-      )
+      .setName("3. Estimated Impact Score") 
+      .setDesc(this.isProactiveMode ? "Estimate impact if failure occurs (1-5)." : "Rate impact of failure (1-5).")
       .addSlider((slider) =>
         slider
           .setLimits(1, 5, 1)
@@ -214,111 +222,96 @@ export class LossLogModal extends Modal {
           })
       );
 
-    // --- 4. Source Task (from context or manual input) - Adjust for Proactive (L15) ---
+    // --- 4. Source Task ---
     new Setting(contentEl)
-      .setName(this.isProactiveMode ? "4. Anticipated Source Task / Scenario" : "4. Source Task") // Update name for proactive mode
-      .setDesc(
-        this.isProactiveMode
-          ? "What task, activity, or scenario are you concerned about?" // Update desc for proactive mode
-          : "What task or activity led to the failure?"
-      )
+      .setName(this.isProactiveMode ? "4. Anticipated Source Task" : "4. Source Task")
+      .setDesc("What task or activity led to the failure?")
       .addText((text) =>
         text
-          .setPlaceholder(
-            this.isProactiveMode
-              ? "e.g., Explaining FRs vs DPSP in the upcoming GS2 mock test" // Update placeholder for proactive mode
-              : "e.g., Explain FRs vs DPSP in GS2"
-          )
-          .setValue(this.sourceTask) // Pre-filled
+          .setPlaceholder(this.isProactiveMode ? "e.g., Upcoming Mock GS2" : "e.g., Explain FRs vs DPSP")
+          .setValue(this.sourceTask)
           .onChange((value) => {
             this.sourceTask = value;
-
-            // --- NEW: Auto-Suggest Archetypes based on Source Task Keywords (L71) ---
-            // This runs whenever the source task text changes
             const lowerSourceTask = value.toLowerCase();
             for (const [keyword, suggestedArchetypes] of Object.entries(KEYWORD_SUGGESTIONS)) {
                 if (lowerSourceTask.includes(keyword)) {
                     for (const archetype of suggestedArchetypes) {
                         if (!this.selectedArchetypes.includes(archetype)) {
                             this.selectedArchetypes.push(archetype);
-                            console.log(`[LossLogModal] Auto-suggested archetype '${archetype}' based on keyword '${keyword}' in source task.`);
                         }
                     }
-                    this.updateArchetypeDisplay(); // Refresh the display after suggestions
+                    this.updateArchetypeDisplay(); 
                 }
             }
-            // --- END NEW ---
           })
       );
 
-    // --- 5. Syllabus Topics & Papers ---
+    // --- NEW: L43 & L44 (Grouped) ---
+    const contextContainer = contentEl.createDiv({ cls: "loss-log-context-grid" });
+    contextContainer.style.display = "grid";
+    contextContainer.style.gridTemplateColumns = "1fr 1fr";
+    contextContainer.style.gap = "10px";
+    contextContainer.style.marginBottom = "10px";
+
+    // Question Type (L43)
+    new Setting(contextContainer)
+        .setName("Question Type")
+        .addDropdown(dropdown => {
+            dropdown.addOption("", "N/A");
+            // Added type annotation (qt: string)
+            QUESTION_TYPES.forEach((qt: string) => dropdown.addOption(qt, qt));
+            dropdown.onChange(v => this.questionType = v);
+        });
+
+    // Source Type (L44)
+    new Setting(contextContainer)
+        .setName("Source Material")
+        .addDropdown(dropdown => {
+            dropdown.addOption("", "N/A");
+            // Added type annotation (st: string)
+            SOURCE_TYPES.forEach((st: string) => dropdown.addOption(st, st));
+            dropdown.onChange(v => this.sourceType = v);
+        });
+
+    // --- 5. Syllabus Topics ---
     new Setting(contentEl)
       .setName("5. Syllabus Topics")
-      .setDesc("Link the relevant topic notes (comma-separated, e.g., [[Topic A]], [[Topic B]]).")
+      .setDesc("Link topics ([[Topic A]], [[Topic B]]).")
       .addText((text) =>
-        text
-          .setPlaceholder("[[Topic A]], [[Topic B]]")
-          .setValue(this.syllabusTopics)
-          .onChange((value) => {
-            this.syllabusTopics = value;
-          })
+        text.setPlaceholder("[[Topic A]]").setValue(this.syllabusTopics).onChange((value) => this.syllabusTopics = value)
       );
 
     new Setting(contentEl)
       .setName("6. Syllabus Papers")
-      .setDesc("Which UPSC paper(s) does this relate to? (comma-separated, e.g., #gs2, #essay)")
+      .setDesc("#gs2, #essay")
       .addText((text) =>
-        text
-          .setPlaceholder("#gs2, #essay")
-          .setValue(this.syllabusPapers)
-          .onChange((value) => {
-            this.syllabusPapers = value;
-          })
+        text.setPlaceholder("#gs2").setValue(this.syllabusPapers).onChange((value) => this.syllabusPapers = value)
       );
 
-    // --- 6. Aura & Emotional State (L5) - Adjust for Proactive (L15) ---
+    // --- 6. Aura & Emotional State ---
     new Setting(contentEl)
-      .setName(this.isProactiveMode ? "7. Energy & Emotion (Anticipated)" : "7. Energy & Emotion") // Update name for proactive mode
-      .setDesc(
-        this.isProactiveMode
-          ? "Your anticipated energy level and emotional state during this potential challenge." // Update desc for proactive mode
-          : "Your energy level and emotional state during the failure."
-      )
+      .setName("7. Energy & Emotion")
       .addDropdown((dropdown) =>
         dropdown
           .addOption("#aura-high", "High Energy")
           .addOption("#aura-mid", "Medium Energy")
           .addOption("#aura-low", "Low Energy")
-          .setValue(this.aura) // Pre-select aura if available from context or state
-          .onChange((value) => {
-            this.aura = value;
-          })
+          .setValue(this.aura)
+          .onChange((value) => this.aura = value)
       )
       .addDropdown((dropdown) =>
         dropdown
           .addOption("", "Select Emotion...")
           .addOption("Frustrated", "Frustrated")
           .addOption("Anxious", "Anxious")
-          .addOption("Tired", "Tired")
-          .addOption("Distracted", "Distracted")
-          .addOption("Overconfident", "Overconfident")
-          .addOption("Confused", "Confused")
+          .addOption("Overconfident", "Overconfident") // Important for L83
           .setValue(this.emotionalState)
-          .onChange((value) => {
-            this.emotionalState = value;
-          })
+          .onChange((value) => this.emotionalState = value)
       );
 
-    // --- 7. Root Cause Chain (5 Whys) (L2) - Adjust for Proactive (L15) ---
+    // --- 7. Root Cause Chain ---
     const causeSection = contentEl.createDiv({ cls: "root-cause-section" });
-    causeSection.createEl("h4", { text: this.isProactiveMode ? "8. Anticipated Root Cause Analysis (5 Whys)" : "8. Root Cause Analysis (5 Whys)" });
-    causeSection.createEl("p", {
-      text: this.isProactiveMode
-        ? "Ask 'Why might this happen?' repeatedly to predict the core cause." // Update desc for proactive mode
-        : "Ask 'Why?' repeatedly to find the core cause.",
-      cls: "setting-item-description"
-    });
-
+    causeSection.createEl("h4", { text: "8. Root Cause Analysis (5 Whys)" });
     const causeInputsContainer = causeSection.createDiv({ cls: "cause-inputs-container" });
 
     const renderCauseInputs = () => {
@@ -327,18 +320,12 @@ export class LossLogModal extends Modal {
         new Setting(causeInputsContainer)
           .addText((text) =>
             text
-              .setPlaceholder(
-                this.isProactiveMode
-                  ? `Why might ${index + 1}? (e.g., Because I haven't revised...)` // Update placeholder for proactive mode
-                  : `Why ${index + 1}? (e.g., Because I didn't revise...)`
-              )
+              .setPlaceholder(`Why ${index + 1}?`)
               .setValue(cause)
-              .onChange((value) => {
-                this.rootCauseChain[index] = value;
-              })
+              .onChange((value) => this.rootCauseChain[index] = value)
           )
           .addExtraButton((button) =>
-            button.setIcon("x").setTooltip("Remove this cause").onClick(() => {
+            button.setIcon("x").onClick(() => {
               if (this.rootCauseChain.length > 1) {
                 this.rootCauseChain.splice(index, 1);
                 renderCauseInputs();
@@ -359,253 +346,144 @@ export class LossLogModal extends Modal {
           );
       }
     };
-
     renderCauseInputs();
 
-    // --- 8. Ariadne's Thread (L6) - Adjust for Proactive (L15) and Add Auto-Gen (L74) ---
+    // --- 8. Ariadne's Thread ---
     new Setting(contentEl)
-      .setName(this.isProactiveMode ? "9. Mitigation Principle" : "9. Ariadne's Thread") // Update name based on mode
-      .setDesc(
-        this.isProactiveMode
-          ? "What principle or action could mitigate this anticipated risk?" // Update desc for proactive mode
-          : "What reusable principle or action will prevent this type of failure in the future?"
-      )
+      .setName("9. Ariadne's Thread")
+      .setDesc("What reusable principle will prevent this?")
       .addTextArea((textArea: TextAreaComponent) => {
         textArea
-          .setPlaceholder(
-            this.isProactiveMode
-              ? "e.g., Always cross-check constitutional concepts with Laxmikanth before the mock." // Update placeholder for proactive mode
-              : "e.g., Always cross-check constitutional concepts with Laxmikanth before answering."
-          )
+          .setPlaceholder("e.g., Always cross-check constitutional concepts...")
           .setValue(this.ariadnesThread)
-          .onChange((value) => {
-            this.ariadnesThread = value;
-          });
+          .onChange((value) => this.ariadnesThread = value);
         textArea.inputEl.rows = 3;
-        textArea.inputEl.addClass("ariadnes-thread-input"); // Add a class for potential selector access
+        textArea.inputEl.addClass("ariadnes-thread-input");
       });
 
-    // --- 9. Counter-Factual Prompt (L16) - Adjust for Proactive (L15) ---
+    // --- 9. Counter-Factual ---
     new Setting(contentEl)
-      .setName(this.isProactiveMode ? "10. Preventive Action" : "10. Counter-Factual") // Update name for proactive mode
-      .setDesc(
-        this.isProactiveMode
-          ? "What single different action could prevent this outcome?" // Update desc for proactive mode
-          : "What single different action would have prevented this outcome?"
-      )
+      .setName("10. Counter-Factual")
       .addTextArea((textArea: TextAreaComponent) => {
-        textArea
-          .setPlaceholder(
-            this.isProactiveMode
-              ? "e.g., Review Laxmikanth Ch 6 before the mock." // Update placeholder for proactive mode
-              : "e.g., Reviewed Laxmikanth Ch 6 before attempting."
-          )
-          .setValue(this.counterFactual)
-          .onChange((value) => {
-            this.counterFactual = value;
-          });
+        textArea.setPlaceholder("e.g., Reviewed Laxmikanth Ch 6 first.").setValue(this.counterFactual).onChange((value) => this.counterFactual = value);
         textArea.inputEl.rows = 2;
       });
 
-    // --- 10. Evidence Attachment (L7) - Adjust for Proactive (L15) ---
-    new Setting(contentEl)
-      .setName(this.isProactiveMode ? "11. Potential Evidence Link (Optional)" : "11. Evidence Link (Optional)") // Update name for proactive mode
-      .setDesc(
-        this.isProactiveMode
-          ? "Link to an image, file, or specific note section showing the *potential* failure scenario." // Update desc for proactive mode
-          : "Link to an image, file, or specific note section showing the failure."
-      )
-      .addText((text) =>
-        text
-          .setPlaceholder(
-            this.isProactiveMode
-              ? "e.g., Screenshot Mock Q3 (anticipated difficulty).png or [[Source Note#^block-id]]" // Update placeholder for proactive mode
-              : "e.g., Screenshot Mock Q3.png or [[Source Note#^block-id]]"
-          )
-          .setValue(this.evidenceLink)
-          .onChange((value) => {
-            this.evidenceLink = value;
-          })
-      );
+    // --- 10. Evidence & Link ---
+    new Setting(contentEl).setName("11. Evidence").addText((text) => text.setValue(this.evidenceLink).onChange((v) => this.evidenceLink = v));
+    new Setting(contentEl).setName("12. Linked Mock Test").addText((text) => text.setValue(this.linkedMockTest).onChange((v) => this.linkedMockTest = v));
+    new Setting(contentEl).setName("13. Time-to-Failure").addText((text) => text.setValue(this.failureRealizationPoint).onChange((v) => this.failureRealizationPoint = v));
 
-    // --- 11. Linked Mock Test (L23) - Adjust for Proactive (L15) ---
-    new Setting(contentEl)
-      .setName(this.isProactiveMode ? "12. Linked Upcoming Mock Test (Optional)" : "12. Linked Mock Test (Optional)") // Update name for proactive mode
-      .setDesc(
-        this.isProactiveMode
-          ? "Link the *upcoming* mock test this risk relates to (e.g., [[Upcoming Mock Test 5 - GS2]])." // Update desc for proactive mode
-          : "Link the mock test this failure occurred during (e.g., [[Mock Test 5 - GS2]])."
-      )
-      .addText((text) =>
-        text
-          .setPlaceholder(
-            this.isProactiveMode
-              ? "[[Upcoming Mock Test Name]]" // Update placeholder for proactive mode
-              : "[[Mock Test Name]]"
-          )
-          .setValue(this.linkedMockTest)
-          .onChange((value) => {
-            this.linkedMockTest = value;
-          })
-      );
-
-    // --- NEW: Time-to-Failure Metric (L45) ---
-    new Setting(contentEl)
-      .setName("13. Time-to-Failure Metric (Optional)")
-      .setDesc("At what point in the task did you realize you were failing? (e.g., 20%, 80%, Near the end)")
-      .addText((text) =>
-        text
-          .setPlaceholder("e.g., 50%, Near the end, At the start")
-          .setValue(this.failureRealizationPoint)
-          .onChange((value) => {
-            this.failureRealizationPoint = value;
-          })
-      );
-    // --- END NEW ---
-
-    // --- NEW: Auto-Generate Thread Button (L74) ---
+    // --- Auto-Generate Button ---
     new Setting(contentEl)
       .addButton((btn) =>
-        btn.setButtonText("Auto-Generate Thread from Reflection").onClick(() => {
-          // This is a simple example. A more complex implementation might parse the body content.
-          // For now, let's assume the user types the thread in the ariadnesThread field and we try to extract from there.
-          // Or, parse the rootCauseChain for keywords.
-          // Let's try parsing the rootCauseChain for a potential thread.
+        btn.setButtonText("Auto-Generate Thread").onClick(() => {
           const potentialThread = this.rootCauseChain.find(cause => cause.toLowerCase().includes("next time"));
-          if (potentialThread && !this.ariadnesThread) { // Only auto-fill if thread is empty
-            // Attempt to extract the part after "next time I will..."
+          if (potentialThread) {
             const match = potentialThread.match(/next time,?\s*i will\s+(.*)/i);
             if (match) {
-                const extractedThread = match[1].trim();
-                if (extractedThread) {
-                    this.ariadnesThread = extractedThread.charAt(0).toUpperCase() + extractedThread.slice(1); // Capitalize first letter
-                    // Update the UI element
-                    const threadTextArea = this.containerEl.querySelector('.ariadnes-thread-input') as HTMLTextAreaElement;
-                    if (threadTextArea) {
-                        threadTextArea.value = this.ariadnesThread;
-                    }
-                    new Notice(`Auto-generated thread: ${this.ariadnesThread}`);
-                }
-            } else {
-                // If no "next time I will" is found in causes, try the Ariadne's Thread field itself
-                const matchInThread = this.ariadnesThread.match(/next time,?\s*i will\s+(.*)/i);
-                if (matchInThread) {
-                    const extractedThread = matchInThread[1].trim();
-                    if (extractedThread) {
-                        this.ariadnesThread = extractedThread.charAt(0).toUpperCase() + extractedThread.slice(1);
-                        const threadTextArea = this.containerEl.querySelector('.ariadnes-thread-input') as HTMLTextAreaElement;
-                        if (threadTextArea) {
-                            threadTextArea.value = this.ariadnesThread;
-                        }
-                        new Notice(`Auto-generated thread from existing field: ${this.ariadnesThread}`);
-                    }
-                } else {
-                    new Notice("Could not find a 'next time I will...' phrase in the root causes or thread field.");
-                }
+                this.ariadnesThread = match[1].trim().charAt(0).toUpperCase() + match[1].trim().slice(1);
+                const threadTextArea = this.containerEl.querySelector('.ariadnes-thread-input') as HTMLTextAreaElement;
+                if (threadTextArea) threadTextArea.value = this.ariadnesThread;
             }
-          } else if (this.ariadnesThread) {
-              new Notice("Ariadne's Thread field is already filled. Auto-generation skipped.");
-          } else {
-              new Notice("No root causes entered yet. Please add some first.");
           }
         })
       );
-    // --- END NEW ---
 
-    // --- Submit Buttons (L15: Adapt for Proactive Mode) ---
+
+// --- NEW: Deep Dive Section (L22) ---
+        // Place this logic *after* all other settings, just before the Submit buttons
+        
+        const deepDiveContainer = this.contentEl.createDiv({ cls: "loss-log-deep-dive" });
+        
+        // Apply styles safely using Object.assign or .style property
+        Object.assign(deepDiveContainer.style, {
+            marginTop: "20px",
+            paddingTop: "10px",
+            borderTop: "1px solid var(--background-modifier-border)",
+            textAlign: "center"
+        });
+
+        // FIX: Apply style to the returned element, not in options
+        const smallText = deepDiveContainer.createEl("small", { text: "Is this failure a major revelation?" });
+        smallText.style.color = "var(--text-muted)";
+        
+        const deepBtn = deepDiveContainer.createEl("button", { text: "🧪 Deepen with Alchemist's Log (L22)" });
+        Object.assign(deepBtn.style, {
+            width: "100%",
+            marginTop: "5px"
+        });
+        
+        deepBtn.onclick = () => {
+            // 1. Close current modal
+            this.close();
+            
+            // 2. Access Plugin via Service (using new getter)
+            const plugin = this.lossLogService.getPlugin();
+            
+            // 3. Map Data
+            // Safely handle syllabusTopics string splitting
+            const mainTopic = this.syllabusTopics.split(',')[0]?.replace(/\[\[|\]\]/g, '').trim() || "General Failure";
+            const rootCause = this.rootCauseChain.join(" -> ");
+
+            // 4. Open Alchemist Modal
+            plugin.openAlchemistLogModal({
+                topic: mainTopic,
+                taskText: this.sourceTask,
+                // Pre-fill the log with context
+                log: `**Failure Context**: ${this.sourceTask}\n**Root Cause**: ${rootCause}\n\nI realized that...`,
+                difficultyCauses: ["Flawed Foundation"], // Default assumption for failures
+                timestamp: Date.now()
+            });
+        };
+
+    // --- Submit Buttons ---
     new Setting(contentEl)
       .addButton((btn) =>
         btn
-          .setButtonText(this.isProactiveMode ? "Log Risk" : "Log Failure") // Change button text for proactive mode
+          .setButtonText(this.isProactiveMode ? "Log Risk" : "Log Failure")
           .setCta()
-          .onClick(() => {
-            this.submitForm(false); // Call submitForm, indicating NOT a deferred log
-          })
+          .onClick(() => this.submitForm(false))
       )
       .addButton((btn) =>
-        btn.setButtonText(this.isProactiveMode ? "Log Risk Later" : "Log Later").onClick(() => { // Change button text for proactive mode
-          this.submitForm(true); // Call submitForm, indicating this IS a deferred log
-        })
+        btn.setButtonText("Log Later").onClick(() => this.submitForm(true))
       )
       .addButton((btn) =>
-        btn.setButtonText("Cancel").onClick(() => {
-          this.close();
-        })
+        btn.setButtonText("Cancel").onClick(() => this.close())
       );
   }
 
-  // --- REFINED: Unified Submit Function (L45, L15) ---
   private submitForm(isDeferred: boolean) {
     if (isDeferred) {
-      // --- Handle "Log Later" Logic (Same as before, but potentially pre-fill more fields in proactive mode) ---
-      // Basic validation for essential context data (source task is critical)
       if (!this.sourceTask.trim()) {
         new Notice("Cannot defer without a source task.");
         return;
       }
-
-      // Prepare an object containing the initial context captured so far
-      // This matches the PendingLossLogContext interface defined in LossLogService
-      // --- INCLUDE PROACTIVE MODE INDICATION (L15) and NEW FIELD (L45) ---
       const pendingItem: PendingLossLogContext = {
         sourceTask: this.sourceTask.trim(),
-        // Store other relevant initial context data captured *during this modal session*
-        initialFailureType: this.failureType || undefined, // Store if selected
-        initialArchetypes: [...this.selectedArchetypes], // Store a copy of selected archetypes
-        initialAura: this.aura, // Store the selected aura
-        initialSyllabusTopics: this.syllabusTopics ? this.syllabusTopics.split(",").map(t => t.trim()).filter(t => t) : undefined, // Store topics if filled
-        // Include the sourceTaskId from the initial context if it was provided (L51, L85)
-        originalTaskId: this.initialContext?.sourceTaskId, // Pass the Crucible task ID or file path
-        timestamp: new Date().toISOString(), // Record when it was deferred
-        // --- ADD PROACTIVE MODE FLAG (L15) ---
-        isProactive: this.initialContext?.isProactiveMode, // Indicate if this was deferred from proactive mode
-        // --- END ADD ---
-        // --- ADD TIME-TO-FAILURE POINT (L45) ---
-        failureRealizationPoint: this.failureRealizationPoint, // Store the realization point if entered
-        // --- END ADD ---
+        initialFailureType: this.failureType || undefined,
+        initialArchetypes: [...this.selectedArchetypes],
+        initialAura: this.aura,
+        initialSyllabusTopics: this.syllabusTopics ? this.syllabusTopics.split(",").map(t => t.trim()).filter(t => t) : undefined,
+        originalTaskId: this.initialContext?.sourceTaskId,
+        timestamp: new Date().toISOString(),
+        isProactive: this.initialContext?.isProactiveMode,
+        failureRealizationPoint: this.failureRealizationPoint,
       };
-      // --- END INCLUDE PROACTIVE MODE INDICATION AND NEW FIELD DATA ---
-
-      // Add the item to the service's pending queue
       this.lossLogService.addPendingLog(pendingItem);
-      new Notice("Labyrinth: Failure/Risk logged for later reflection in the Mythos Hub.");
-      // --- NEW: Show Escape Mechanic Notice (L25) ---
       this.lossLogService.showEscapeMechanicNotice();
-      // --- END NEW ---
-      this.close(); // Close the modal after deferring
+      this.close();
     } else {
-      // --- Handle "Log Failure/Risk" Logic (Updated for Proactive Mode - L15, New Field - L45) ---
-      // Basic validation (as before)
-      if (!this.failureType) {
-        new Notice("Please select a Failure Type.");
-        return;
-      }
-      if (this.selectedArchetypes.length === 0) {
-        new Notice("Please select at least one Failure Archetype.");
-        return;
-      }
-      if (!this.sourceTask.trim()) {
-        new Notice("Please enter the Source Task.");
-        return;
-      }
-      if (!this.ariadnesThread.trim()) {
-        new Notice("Please define an Ariadne's Thread (or Mitigation Principle).");
-        return;
-      }
+      if (!this.failureType) { new Notice("Please select a Failure Type."); return; }
+      if (this.selectedArchetypes.length === 0) { new Notice("Please select at least one Archetype."); return; }
+      if (!this.sourceTask.trim()) { new Notice("Please enter Source Task."); return; }
+      if (!this.ariadnesThread.trim()) { new Notice("Please define an Ariadne's Thread."); return; }
 
-      // Process comma-separated strings into arrays
-      const topicsArray = this.syllabusTopics
-        .split(",")
-        .map((t) => t.trim())
-        .filter((t) => t.length > 0);
-      const papersArray = this.syllabusPapers
-        .split(",")
-        .map((p) => p.trim())
-        .filter((p) => p.length > 0);
+      const topicsArray = this.syllabusTopics.split(",").map((t) => t.trim()).filter((t) => t.length > 0);
+      const papersArray = this.syllabusPapers.split(",").map((p) => p.trim()).filter((p) => p.length > 0);
 
-      // Prepare the data object
       const lossData: LossLogData = {
-        lossId: "", // Will be generated by the service
+        lossId: "",
         sourceTask: this.sourceTask.trim(),
         failureType: this.failureType,
         failureArchetypes: this.selectedArchetypes,
@@ -614,46 +492,38 @@ export class LossLogModal extends Modal {
         syllabusPapers: papersArray,
         aura: this.aura,
         emotionalState: this.emotionalState || undefined,
-        rootCauseChain: this.rootCauseChain.filter((c) => c.trim() !== ""), // Remove empty causes
+        rootCauseChain: this.rootCauseChain.filter((c) => c.trim() !== ""),
         ariadnesThread: this.ariadnesThread.trim(),
         counterFactual: this.counterFactual.trim() || undefined,
         evidenceLink: this.evidenceLink.trim() || undefined,
         linkedMockTest: this.linkedMockTest.trim() || undefined,
-        timestamp: new Date().toISOString(), // Set current time
-        // --- INCLUDE PROVENANCE AND NEW FIELDS (L51, L15, L45) ---
+        timestamp: new Date().toISOString(),
         provenance: {
-          origin: this.initialContext?.isProactiveMode ? "scrying-pool" : "manual", // Mark as scrying pool log if proactive
-          // Include the sourceTaskId from the initial context if it was provided (L51, L85)
-          sourceTaskId: this.initialContext?.sourceTaskId, // Pass the Crucible task ID or file path
+          origin: this.initialContext?.isProactiveMode ? "scrying-pool" : "manual",
+          sourceTaskId: this.initialContext?.sourceTaskId,
         },
-        // --- END INCLUDE PROVENANCE ---
-        // --- ADD NEW FIELD DATA (L45) ---
-        failureRealizationPoint: this.failureRealizationPoint || undefined, // Store the realization point if entered
-        // --- END ADD NEW FIELD DATA ---
+        failureRealizationPoint: this.failureRealizationPoint || undefined,
+        
+        // --- NEW FIELDS ---
+        confidenceScore: this.confidenceScore,
+        questionType: this.questionType || undefined,
+        sourceType: this.sourceType || undefined,
+        examPhase: this.examPhase || undefined,
       };
 
-      // Call the service to create the log
       try {
-        // Use the service's helper to prepare the data (fills ID, defaults)
         const preparedData = this.lossLogService.prepareLossLogData(lossData);
-        // Pass the prepared data to the service's creation method
         this.lossLogService.createLossLog(preparedData).then(() => {
-          // Optionally call the onSubmit callback if you need to update parent state
-          if (this.onSubmit) {
-              this.onSubmit(preparedData);
-          }
-          new Notice(`Labyrinth: ${this.isProactiveMode ? "Risk" : "Failure"} logged successfully.`);
-                    // --- NEW: Show Escape Mechanic Notice (L25) ---
+          if (this.onSubmit) this.onSubmit(preparedData);
+          new Notice(`Labyrinth: ${this.isProactiveMode ? "Risk" : "Failure"} logged.`);
           this.lossLogService.showEscapeMechanicNotice();
-          // --- END NEW ---
-          this.close(); // Close the modal on success
+          this.close();
         }).catch((error) => {
-          console.error("Failed to submit loss log:", error);
-          new Notice("Failed to save loss log. Please check console.");
+          console.error("Failed to submit:", error);
+          new Notice("Failed to save. Check console.");
         });
       } catch (error) {
-        console.error("Error preparing or creating loss log:", error);
-        new Notice("An error occurred while preparing the log. Please check console.");
+        console.error("Error preparing:", error);
       }
     }
   }

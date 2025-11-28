@@ -21,6 +21,8 @@ import { LossLogService } from './services/LossLogService'; // Import the servic
 import { LossLogModal } from './modals/LossLogModal'; // Import the modal if needed elsewhere
 import { LabyrinthView, LABYRINTH_VIEW_TYPE } from './views/LabyrinthView'; // Adjust path if needed
 import { RitualService } from './services/RitualService'; // Import
+import { QuickLossLogModal } from "./modals/QuickLossLogModal";
+import { LabyrinthControlsRenderer } from "./ui/LabyrinthCodeblock"; // Import
 
 
 
@@ -48,6 +50,12 @@ export default class MythicMatrixPlugin extends Plugin {
     this.synthesisService = new SynthesisService(this.app, this.eventBus, this.settings, this);
     this.lossLogService = new LossLogService(this.app, this.eventBus, this.settings, this, this.revisionScheduler); // Ensure scheduler passed if needed
     this.ritualService = new RitualService(this.app, this, this.lossLogService);
+
+    // --- NEW: Run Monthly Check ---
+        // We put this in a setTimeout to ensure Vault is fully loaded
+        this.app.workspace.onLayoutReady(async () => {
+            await this.ritualService.checkAndRunMonthlyRitual();
+        });
 
     if (this.settings.enableRevision) {
       this.revisionScheduler = new RevisionScheduler(this.app, this.eventBus, this.settings);
@@ -92,7 +100,170 @@ export default class MythicMatrixPlugin extends Plugin {
        this.eventBus.on('weeklyReset', this.handleWeeklyReset.bind(this));
 
     console.log('Mythic Matrix Plugin loaded.');
-  }
+
+    // --- NEW: L94 Answer Rubric Listener ---
+        this.registerEvent(
+            this.app.metadataCache.on("changed", (file) => {
+                // Only check Markdown files
+                if (file.extension !== "md") return;
+
+                // OPTIONAL: Filter by folder (e.g., "60 Answers/") or tag (#answer)
+                // For now, we check if the specific frontmatter keys exist.
+                
+                const cache = this.app.metadataCache.getFileCache(file);
+                const fm = cache?.frontmatter;
+
+                if (fm && (fm.Structure !== undefined || fm.Clarity !== undefined)) {
+                    this.checkRubricFailure(file, fm);
+                }
+            })
+        );
+
+ // --- NEW: L54 Kanban/Header Blocker Listener ---
+        this.registerEvent(
+            this.app.metadataCache.on("changed", (file) => {
+                if (file.extension === "md") {
+                    this.checkBlockedTasks(file);
+                }
+            })
+        );
+    }
+
+        // --- NEW: L54 Logic ---
+    private async checkBlockedTasks(file: TFile) {
+        // 1. Check if we should process this file (ignore Labyrinth logs themselves)
+        if (file.path.startsWith(this.settings.lossLogFolder)) return;
+
+        // 2. Read file
+        const content = await this.app.vault.read(file);
+        const lines = content.split('\n');
+        
+        let currentHeader = "";
+        const blockedHeaders = this.settings.blockedHeaders.map(h => h.toLowerCase());
+
+        for (const line of lines) {
+            // Track Header
+            const headerMatch = line.match(/^#+\s+(.*)/);
+            if (headerMatch) {
+                currentHeader = headerMatch[1].toLowerCase().trim();
+                continue;
+            }
+
+            // Check if line is a task
+            // Regex: - [ ] or - [x] followed by text
+            const taskMatch = line.match(/^(\s*-\s\[[ x]\]\s)(.*)/);
+            
+            if (taskMatch) {
+                const taskText = taskMatch[2];
+                
+                // Condition: Under a "Blocked" header AND NOT already tagged #blocked
+                // (We tag it to prevent infinite prompting)
+                if (blockedHeaders.some(h => currentHeader.includes(h))) {
+                    if (!taskText.includes("#blocked") && !taskText.includes("🔒")) {
+                        
+                        // We found a new block!
+                        // 1. Tag it in the file to avoid loops
+                        await this.tagTaskAsBlocked(file, line, taskText);
+                        
+                        // 2. Prompt User
+                        this.triggerBlockerPrompt(file, taskText);
+                    }
+                }
+            }
+        }
+
+        // --- NEW: Register Codeblock Processor ---
+        this.registerMarkdownCodeBlockProcessor("labyrinth-controls", (source, el, ctx) => {
+            const renderer = new LabyrinthControlsRenderer(el, this, ctx.sourcePath);
+            ctx.addChild(renderer);
+        });
+    }
+
+    private async tagTaskAsBlocked(file: TFile, originalLine: string, taskText: string) {
+        // Replace the line in the file to add #blocked
+        // Note: This simple replace might be risky if line is duplicate. 
+        // For MVP, unique task text is assumed or we accept the risk.
+        const content = await this.app.vault.read(file);
+        const newContent = content.replace(originalLine, originalLine + " #blocked");
+        await this.app.vault.modify(file, newContent);
+    }
+
+    private triggerBlockerPrompt(file: TFile, taskText: string) {
+        // Use a Notice or Confirm. Confirm is blocking but ensures attention.
+        // We use a timeout to not block the UI update of the tag write.
+        setTimeout(() => {
+            const proceed = confirm(`🛑 Task Blocked Detected in "${file.basename}"\n\nTask: "${taskText.substring(0, 40)}..."\n\nDo you want to log this obstacle to the Labyrinth?`);
+            
+            if (proceed) {
+                new QuickLossLogModal(
+                    this.app,
+                    this.lossLogService,
+                    () => {},
+                    {
+                        sourceTask: `${taskText} ([[${file.basename}]])`,
+                        initialFailureType: "Process Failure",
+                        initialArchetype: "procrastination", // or external-block
+                        sourceTaskId: file.path // Link to note
+                    }
+                ).open();
+            }
+        }, 500);
+    } 
+
+    // --- NEW: Helper for L94 ---
+    private checkRubricFailure(file: TFile, fm: any) {
+        // Define threshold (e.g., score out of 10, failure is < 4)
+        // Or 1-5 scale, failure is < 3. Let's assume 1-5 scale.
+        const threshold = 3;
+        
+        const lowStructure = fm.Structure && fm.Structure < threshold;
+        const lowClarity = fm.Clarity && fm.Clarity < threshold;
+
+        if (lowStructure || lowClarity) {
+            // Debounce? (Obsidian events can fire multiple times). 
+            // Ideally, check if already logged today. For MVP, we rely on user confirmation.
+            
+            const type = lowStructure ? "Structure" : "Clarity";
+            
+            // We use a Notice with a Button-like interaction or just open the modal directly?
+            // Opening a modal directly interrupts typing. Better to use a specialized Notice or just console log?
+            // Let's use a confirm dialog which is standard blocking but effective for "Stop! Reflect."
+            
+            // BUT: "changed" event fires on every keystroke if auto-save is on. 
+            // We must be careful.
+            // BETTER APPROACH: Only trigger if a specific "Status" field changes to "Reviewed".
+            
+            if (fm.Status === "Reviewed") {
+                 // Check if we haven't already logged this specific failure for this file
+                 // (Implementation detail: maybe store a "logged_failure: true" in FM to prevent loops)
+                 if (!fm.labyrinth_logged) {
+                     this.triggerRubricModal(file, type);
+                 }
+            }
+        }
+    }
+
+    private triggerRubricModal(file: TFile, failureType: string) {
+        const proceed = confirm(`📉 Low ${failureType} score detected on "${file.basename}". \n\nLog this failure to the Labyrinth to improve next time?`);
+        
+        if (proceed) {
+            // Mark as logged to prevent loop
+            this.app.fileManager.processFrontMatter(file, (fm) => {
+                fm.labyrinth_logged = true;
+            });
+
+            new LossLogModal(
+                this.app,
+                this.lossLogService,
+                () => {},
+                {
+                    sourceTask: `Answer Writing: [[${file.basename}]]`,
+                    initialFailureType: "Skill Gap",
+                    initialArchetypes: [failureType === "Structure" ? "poor-structure" : "clarity-issue"]
+                }
+            ).open();
+        }
+    }
 
   onunload() {
     console.log('Unloading Mythic Matrix Plugin...');
@@ -168,6 +339,8 @@ export default class MythicMatrixPlugin extends Plugin {
       new Notice("Failed to create answer draft.", 5000);
     }
   }
+
+  
 
   // src/main.ts → handleSourceNoteRevised
   private async handleSourceNoteRevised(file: TFile) {
@@ -252,6 +425,9 @@ export default class MythicMatrixPlugin extends Plugin {
         // Optional: Archive completed tasks from settings to prevent bloat?
         this.archiveCompletedTasks(); 
 
+        // 3. Generate New Bounty (L29)
+    await this.lossLogService.generateWeeklyBounty();
+
         new Notice("Weekly Ritual Complete. The slate is clean.");
     }
 
@@ -326,6 +502,7 @@ private async archiveCompletedTasks() {
     }
   }
   // --- END NEW ---
+  
   
 
   // --- Data Persistence ---

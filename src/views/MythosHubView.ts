@@ -5,6 +5,7 @@ import MythicMatrixPlugin from '../main';
 import { MYTHOS_HUB_VIEW_TYPE } from '../constants';
 import { LossLogDeferredModal } from '../modals/LossLogDeferredModal'; // Import the deferred modal
 import { QuickLossLogModal } from '../modals/QuickLossLogModal'; // Import the new modal
+import { moment } from 'obsidian'; // Ensure moment is imported
 
 
 export class MythosHubView extends ItemView {
@@ -43,6 +44,33 @@ export class MythosHubView extends ItemView {
 
     async renderHub() {
         this.containerEl.empty();
+
+        // --- NEW: L99 Weekly Offering Banner ---
+        const today = moment();
+        const isSunday = today.day() === 0; // 0 = Sunday
+        // Optional: Check if reset has happened? For now, just show on Sundays.
+
+        if (isSunday) {
+            const banner = this.containerEl.createDiv({ cls: "mythos-offering-banner" });
+            banner.createEl("h3", { text: "🕯️ The Weekly Offering" });
+            banner.createEl("p", { text: "Sunday has arrived. Offer your losses to the labyrinth. What have you learned this week?" });
+            
+            // Add styling inline or in CSS
+            banner.style.cssText = `
+                background: linear-gradient(90deg, rgba(212, 175, 55, 0.1), transparent);
+                border-left: 4px solid #d4af37;
+                padding: 15px;
+                margin-bottom: 25px;
+                border-radius: 4px;
+            `;
+            
+            const btn = banner.createEl("button", { text: "Perform Weekly Reset" });
+            btn.onclick = () => {
+                this.app.commands.executeCommandById("mythic-matrix:mythic-matrix-weekly-reset");
+            };
+        }
+        // ---------------------------------------
+        
         const title = this.containerEl.createEl("h2", { text: "The Mythos Hub \u{1F300}" });
         title.style.textAlign = "center";
         title.style.marginBottom = "20px";
@@ -97,6 +125,12 @@ export class MythosHubView extends ItemView {
         }
 
         labyrinthCard.createEl("div", { text: "Deferred failure logs", cls: "mythos-hub-card-desc" });
+
+        // --- NEW: L56 Phoenix Counter Display ---
+        const totalLosses = this.plugin.settings.totalLossesLogged || 0;
+        const counterDiv = labyrinthCard.createDiv({ cls: "phoenix-counter" });
+        counterDiv.innerHTML = `You have turned <strong>${totalLosses}</strong> losses into growth.`;
+        // ---------------------------------------
 
         // Button to process the *next* pending log (FIFO)
         const processBtn = labyrinthCard.createEl("button", { text: `Process Next` });
@@ -181,6 +215,43 @@ export class MythosHubView extends ItemView {
             `;
         }
         // ---------------------------------------
+
+
+     // --- NEW: Active Bounty Card (L29) ---
+        const bounty = this.plugin.settings.activeBounty;
+        if (bounty && !bounty.completed) {
+            const bountyCard = this.containerEl.createDiv({ cls: 'mythos-bounty-card' });
+            
+            // Header
+            const header = bountyCard.createDiv({ cls: 'bounty-header' });
+            header.createEl("span", { text: "🎯 WEEKLY BOUNTY", cls: "bounty-label" });
+            header.createEl("span", { text: `${bounty.rewardXP} XP`, cls: "bounty-reward" });
+
+            // Content
+            bountyCard.createEl("h3", { text: `Catch: ${bounty.archetype}` });
+            
+            // Progress Bar
+            const progressContainer = bountyCard.createDiv({ cls: 'bounty-progress-container' });
+            const progressFill = progressContainer.createDiv({ cls: 'bounty-progress-fill' });
+            
+            const pct = (bounty.count / bounty.target) * 100;
+            progressFill.style.width = `${pct}%`;
+            progressFill.innerText = `${bounty.count} / ${bounty.target}`;
+
+            // Styles (Inline for now, move to CSS)
+            bountyCard.style.cssText = `
+                background: linear-gradient(135deg, #2c3e50 0%, #000000 100%);
+                border: 1px solid #d4af37;
+                color: #d4af37;
+                padding: 15px;
+                margin-bottom: 20px;
+                border-radius: 8px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            `;
+            progressContainer.style.cssText = `background: #444; height: 20px; border-radius: 10px; margin-top: 10px; overflow: hidden;`;
+            progressFill.style.cssText = `background: #d4af37; height: 100%; color: #000; text-align: center; font-size: 12px; line-height: 20px; font-weight: bold; width: ${pct}%`;
+        }
+        // -------------------------------------   
 
     }
 

@@ -155,6 +155,37 @@ new Setting(containerEl)
             this.plugin.settings.timeCapsuleFolder = value.trim() || "00 Meta/Time Capsules";
             await this.plugin.saveSettings();
         }));
+
+        // --- NEW: Daedalus Architect Mode (L40) ---
+        new Setting(containerEl)
+            .setName("Failure Archetypes (Daedalus Mode)")
+            .setDesc("Customize the list of failure types available in the logger. Separate with commas.")
+            .addTextArea(text => text
+                .setPlaceholder("silly-mistake, conceptual-error, time-mismanagement...")
+                .setValue(this.plugin.settings.failureArchetypes.join(", "))
+                .onChange(async (value) => {
+                    // Split by comma, trim whitespace, remove empty strings
+                    const archetypes = value.split(",")
+                        .map(s => s.trim())
+                        .filter(s => s.length > 0);
+                    
+                    // Update settings
+                    this.plugin.settings.failureArchetypes = archetypes;
+                    await this.plugin.saveSettings();
+                }));
+        // -------------------------------------------
+
+        // (Add under Time Capsule Folder)
+        new Setting(containerEl)
+            .setName("Monthly Journal Folder")
+            .setDesc("Folder where monthly review notes (Silent Journal) will be generated.")
+            .addText(text => text
+                .setPlaceholder("00 Meta/Monthly Reviews")
+                .setValue(this.plugin.settings.monthlyJournalFolder)
+                .onChange(async (value) => {
+                    this.plugin.settings.monthlyJournalFolder = value.trim() || "00 Meta/Monthly Reviews";
+                    await this.plugin.saveSettings();
+                }));
         
         // --- Quadrant Customization ---
         containerEl.createEl('h3', { text: 'Quadrant Customization' });
@@ -183,7 +214,17 @@ new Setting(containerEl)
                     }));         
         });
 
-
-
+// --- Automation Settings ---
+        new Setting(containerEl)
+            .setName("Blocked Headers (Kanban)")
+            .setDesc("Tasks moved under these headers will trigger a failure log prompt. Comma separated.")
+            .addTextArea(text => text
+                .setPlaceholder("Blocked, Waiting, Stuck")
+                .setValue(this.plugin.settings.blockedHeaders.join(", "))
+                .onChange(async (value) => {
+                    const headers = value.split(",").map(s => s.trim()).filter(s => s.length > 0);
+                    this.plugin.settings.blockedHeaders = headers;
+                    await this.plugin.saveSettings();
+                }));
     }
-}
+    }
